@@ -38,12 +38,7 @@ jobs:
           mkdir -p logs database
 
           # Create DB
-          python - <<EOF
-import sqlite3
-conn = sqlite3.connect("database/test.db")
-conn.execute("CREATE TABLE IF NOT EXISTS test (id INTEGER)")
-conn.close()
-EOF
+          python -c "import sqlite3; conn=sqlite3.connect('database/test.db'); conn.execute('CREATE TABLE IF NOT EXISTS test (id INTEGER)'); conn.close()"
 
           # Create logs
           echo "INFO: App started" > logs/app.log
