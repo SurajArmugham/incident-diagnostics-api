@@ -13,55 +13,67 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      # -------------------------
+      # Checkout code
+      # -------------------------
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Setup Python
-      run: |
-        python -m venv venv
-        source venv/bin/activate
-        pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pytest
-   
-    - name: Setup test environment
-      run: |
-         mkdir -p logs database
+      # -------------------------
+      # Setup Python
+      # -------------------------
+      - name: Setup Python
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
 
-        # Create DB
-      python - <<EOF
-      import sqlite3
-      conn = sqlite3.connect("database/test.db")
-      conn.execute("CREATE TABLE IF NOT EXISTS test (id INTEGER)")
-      conn.close()
-      EOF
+      # -------------------------
+      # Setup test environment
+      # -------------------------
+      - name: Setup test environment
+        run: |
+          mkdir -p logs database
 
-    # Create logs
-    echo "INFO: App started" > logs/app.log
-    echo "ERROR: connection refused to DB" >> logs/app.log
-    
-    - name: Run tests
-      run: |
-        source venv/bin/activate
-        pytest
+          # Create DB
+          python - <<EOF
+import sqlite3
+conn = sqlite3.connect("database/test.db")
+conn.execute("CREATE TABLE IF NOT EXISTS test (id INTEGER)")
+conn.close()
+EOF
 
-    # -------------------------
-    # Build Artifact
-    # -------------------------
-    - name: Create artifact
-      run: |
-        mkdir -p build
-        cp -r app.py routes services utils logs database dummy_service.py requirements.txt build/
-        tar -czf incident-api.tar.gz build/
+          # Create logs
+          echo "INFO: App started" > logs/app.log
+          echo "ERROR: connection refused to DB" >> logs/app.log
 
-    # -------------------------
-    # Upload Artifact
-    # -------------------------
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: incident-api
-        path: incident-api.tar.gz
+      # -------------------------
+      # Run Tests
+      # -------------------------
+      - name: Run tests
+        run: |
+          source venv/bin/activate
+          pytest
+
+      # -------------------------
+      # Build Artifact
+      # -------------------------
+      - name: Create artifact
+        run: |
+          mkdir -p build
+          cp -r app.py routes services utils logs database dummy_service.py requirements.txt build/
+          tar -czf incident-api.tar.gz build/
+
+      # -------------------------
+      # Upload Artifact
+      # -------------------------
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: incident-api
+          path: incident-api.tar.gz
 
 
 # -------------------------
@@ -72,28 +84,40 @@ jobs:
     runs-on: self-hosted
 
     steps:
-    - name: Download artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: incident-api
+      # -------------------------
+      # Download Artifact
+      # -------------------------
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: incident-api
 
-    - name: Deploy application
-      run: |
-        mkdir -p ~/deployments
-        cd ~/deployments
+      # -------------------------
+      # Deploy Application
+      # -------------------------
+      - name: Deploy application
+        run: |
+          mkdir -p ~/deployments
+          cd ~/deployments
 
-        rm -rf current
-        mkdir current
+          rm -rf current
+          mkdir current
 
-        tar -xzf incident-api.tar.gz -C current --strip-components=1
+          tar -xzf incident-api.tar.gz -C current --strip-components=1
 
-    - name: Restart application
-      run: |
-        pkill -f "python app.py" || true
-        cd ~/deployments/current
-        nohup python app.py > output.log 2>&1 &
+      # -------------------------
+      # Restart Application
+      # -------------------------
+      - name: Restart application
+        run: |
+          pkill -f "python app.py" || true
+          cd ~/deployments/current
+          nohup python app.py > output.log 2>&1 &
 
-    - name: Health check
-      run: |
-        sleep 2
-        curl http://localhost:8000/health/app
+      # -------------------------
+      # Health Check
+      # -------------------------
+      - name: Health check
+        run: |
+          sleep 3
+          curl http://localhost:8000/health/app
