@@ -1,0 +1,83 @@
+name: CI-CD Pipeline
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+
+# -------------------------
+# 1. BUILD + TEST (CLOUD)
+# -------------------------
+  build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Setup Python
+      run: |
+        python -m venv venv
+        source venv/bin/activate
+        pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest
+
+    - name: Run tests
+      run: |
+        source venv/bin/activate
+        pytest
+
+    # -------------------------
+    # Build Artifact
+    # -------------------------
+    - name: Create artifact
+      run: |
+        mkdir -p build
+        cp -r app.py routes services utils logs database dummy_service.py requirements.txt build/
+        tar -czf incident-api.tar.gz build/
+
+    # -------------------------
+    # Upload Artifact
+    # -------------------------
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: incident-api
+        path: incident-api.tar.gz
+
+
+# -------------------------
+# 2. DEPLOY (SELF-HOSTED)
+# -------------------------
+  deploy:
+    needs: build-test
+    runs-on: self-hosted
+
+    steps:
+    - name: Download artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: incident-api
+
+    - name: Deploy application
+      run: |
+        mkdir -p ~/deployments
+        cd ~/deployments
+
+        rm -rf current
+        mkdir current
+
+        tar -xzf incident-api.tar.gz -C current --strip-components=1
+
+    - name: Restart application
+      run: |
+        pkill -f "python app.py" || true
+        cd ~/deployments/current
+        nohup python app.py > output.log 2>&1 &
+
+    - name: Health check
+      run: |
+        sleep 2
+        curl http://localhost:8000/health/app
