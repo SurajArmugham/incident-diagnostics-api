@@ -23,7 +23,23 @@ jobs:
         pip install --upgrade pip
         pip install -r requirements.txt
         pip install pytest
+   
+    - name: Setup test environment
+      run: |
+         mkdir -p logs database
 
+        # Create DB
+      python - <<EOF
+      import sqlite3
+      conn = sqlite3.connect("database/test.db")
+      conn.execute("CREATE TABLE IF NOT EXISTS test (id INTEGER)")
+      conn.close()
+      EOF
+
+    # Create logs
+    echo "INFO: App started" > logs/app.log
+    echo "ERROR: connection refused to DB" >> logs/app.log
+    
     - name: Run tests
       run: |
         source venv/bin/activate
