@@ -13,15 +13,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # -------------------------
-      # Checkout code
-      # -------------------------
+      # Checkout
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # -------------------------
       # Setup Python
-      # -------------------------
       - name: Setup Python
         run: |
           python -m venv venv
@@ -30,40 +26,30 @@ jobs:
           pip install -r requirements.txt
           pip install pytest
 
-      # -------------------------
-      # Setup test environment
-      # -------------------------
+      # Setup environment (DB + logs)
       - name: Setup test environment
         run: |
           mkdir -p logs database
 
-          # Create DB
           python -c "import sqlite3; conn=sqlite3.connect('database/test.db'); conn.execute('CREATE TABLE IF NOT EXISTS test (id INTEGER)'); conn.close()"
 
-          # Create logs
           echo "INFO: App started" > logs/app.log
           echo "ERROR: connection refused to DB" >> logs/app.log
 
-      # -------------------------
-      # Run Tests
-      # -------------------------
+      # Run tests
       - name: Run tests
         run: |
           source venv/bin/activate
           pytest
 
-      # -------------------------
-      # Build Artifact
-      # -------------------------
+      # Build artifact
       - name: Create artifact
         run: |
           mkdir -p build
           cp -r app.py routes services utils logs database dummy_service.py requirements.txt build/
           tar -czf incident-api.tar.gz build/
 
-      # -------------------------
-      # Upload Artifact
-      # -------------------------
+      # Upload artifact
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -79,40 +65,40 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      # -------------------------
-      # Download Artifact (flatten path)
-      # -------------------------
+      # Download artifact to workspace
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
           name: incident-api
-          path: .
+          path: ${{ github.workspace }}
 
-      # -------------------------
-      # Deploy Application
-      # -------------------------
+      # Debug (SAFE to keep for now)
+      - name: Debug artifact location
+        run: |
+          echo "Workspace:"
+          pwd
+          echo "Listing files:"
+          ls -la
+
+      # Deploy
       - name: Deploy application
         run: |
-          mkdir -p ~/deployments
-          cd ~/deployments
+          mkdir -p ~/deployments/current
 
-          rm -rf current
-          mkdir current
+          rm -rf ~/deployments/current/*
+          
+          tar -xzf ${{ github.workspace }}/incident-api.tar.gz \
+            -C ~/deployments/current \
+            --strip-components=1
 
-          tar -xzf incident-api.tar.gz -C current --strip-components=1
-
-      # -------------------------
-      # Restart Application
-      # -------------------------
+      # Restart app
       - name: Restart application
         run: |
           pkill -f "python app.py" || true
           cd ~/deployments/current
           nohup python app.py > output.log 2>&1 &
 
-      # -------------------------
-      # Health Check
-      # -------------------------
+      # Health check
       - name: Health check
         run: |
           sleep 3
