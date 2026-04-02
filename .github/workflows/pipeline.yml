@@ -108,5 +108,5 @@ jobs:
       # Health check
       - name: Health check
         run: |
-          sleep 3
+          sleep 10
           curl http://localhost:8000/health/app
