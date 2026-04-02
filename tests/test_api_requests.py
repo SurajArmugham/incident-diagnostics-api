@@ -1,29 +1,27 @@
-import requests
-import pytest
+import os
 
 import pytest
+import requests
 
 pytest.skip("Skipping external API tests in CI", allow_module_level=True)
 
 BASE_URL = "http://localhost:8000"
+API_SECRET_KEY = os.getenv("API_SECRET_KEY", "test-secret-key")
+AUTH_HEADERS = {"X-API-KEY": API_SECRET_KEY}
 
 
 def is_server_up():
     try:
         requests.get(f"{BASE_URL}/health/app", timeout=1)
         return True
-    except:
+    except requests.RequestException:
         return False
 
-
-@pytest.mark.skipif(not is_server_up(), reason="API server not running")
-def test_health_app_requests():
-    res = requests.get(f"{BASE_URL}/health/app")
-    assert res.status_code == 200
 
 # ---------------------------
 # Health: API
 # ---------------------------
+@pytest.mark.skipif(not is_server_up(), reason="API server not running")
 def test_health_app_requests():
     res = requests.get(f"{BASE_URL}/health/app")
 
@@ -34,6 +32,7 @@ def test_health_app_requests():
 # ---------------------------
 # Health: Service
 # ---------------------------
+@pytest.mark.skipif(not is_server_up(), reason="API server not running")
 def test_health_service_requests():
     res = requests.get(f"{BASE_URL}/health/dependency/service")
 
@@ -44,6 +43,7 @@ def test_health_service_requests():
 # ---------------------------
 # Health: DB
 # ---------------------------
+@pytest.mark.skipif(not is_server_up(), reason="API server not running")
 def test_health_db_requests():
     res = requests.get(f"{BASE_URL}/health/dependency/db")
 
@@ -54,13 +54,14 @@ def test_health_db_requests():
 # ---------------------------
 # Incident API
 # ---------------------------
+@pytest.mark.skipif(not is_server_up(), reason="API server not running")
 def test_incident_analyze_requests():
     payload = {
         "incident_id": "INC12345",
         "service_name": "dummy_service.py"
     }
 
-    res = requests.post(f"{BASE_URL}/incident/analyze", json=payload)
+    res = requests.post(f"{BASE_URL}/incident/analyze", json=payload, headers=AUTH_HEADERS)
 
     assert res.status_code == 200
 

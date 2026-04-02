@@ -134,6 +134,17 @@ python app.py
 
 ⸻
 
+
+8️⃣ Configure API Secret Key
+
+```bash
+export API_SECRET_KEY=your-strong-secret
+```
+
+All non-health endpoints now require `X-API-KEY` header with this value.
+
+⸻
+
 🧪 API Endpoints
 
 🔹 API Health
@@ -150,7 +161,7 @@ GET /health/dependency/db
 
 🔥 Incident Analysis
 
-POST /incident/analyze
+POST /incident/analyze (requires `X-API-KEY`)
 
 
 ⸻
