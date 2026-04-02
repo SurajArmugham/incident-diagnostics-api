@@ -103,7 +103,7 @@ jobs:
 
           pip install -r requirements.txt
 
-          nohup python app.py > output.log 2>&1 &
+          nohup setsid python app.py > output.log 2>&1 &
 
       # Health check
       - name: Health check
