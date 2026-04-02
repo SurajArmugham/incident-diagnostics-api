@@ -11,6 +11,8 @@ jobs:
 # -------------------------
   build-test:
     runs-on: ubuntu-latest
+    env:
+      API_SECRET_KEY: ${{ secrets.API_SECRET_KEY || 'test-secret-key' }}
 
     steps:
       # Checkout
@@ -63,6 +65,8 @@ jobs:
   deploy:
     needs: build-test
     runs-on: self-hosted
+    env:
+      API_SECRET_KEY: ${{ secrets.API_SECRET_KEY }}
 
     steps:
       # Download artifact to workspace
@@ -91,12 +95,20 @@ jobs:
             -C ~/deployments/current \
             --strip-components=1
 
+      # Ensure deployment secret exists
+      - name: Validate API secret
+        run: |
+          if [ -z "$API_SECRET_KEY" ]; then
+            echo "ERROR: API_SECRET_KEY is not configured in GitHub Secrets"
+            exit 1
+          fi
+
       # Restart app
       - name: Restart application
         run: |
           pkill -f "python app.py" || true
           cd ~/deployments/current
-          nohup python app.py > output.log 2>&1 &
+          nohup env API_SECRET_KEY="$API_SECRET_KEY" python app.py > output.log 2>&1 &
 
       # Health check
       - name: Health check
