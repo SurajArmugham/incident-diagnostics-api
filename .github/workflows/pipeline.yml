@@ -95,7 +95,14 @@ jobs:
       - name: Restart application
         run: |
           pkill -f "python app.py" || true
+
           cd ~/deployments/current
+
+          python3 -m venv venv
+          source venv/bin/activate
+
+          pip install -r requirements.txt
+
           nohup python app.py > output.log 2>&1 &
 
       # Health check
