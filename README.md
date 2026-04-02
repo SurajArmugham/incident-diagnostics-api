@@ -134,6 +134,26 @@ python app.py
 
 ⸻
 
+
+8️⃣ Configure API Secret Key
+
+```bash
+export API_SECRET_KEY=your-strong-secret
+```
+
+All non-health endpoints now require `X-API-KEY` header with this value.
+
+Example:
+
+```bash
+curl -X POST http://localhost:8000/incident/analyze \
+  -H "Content-Type: application/json" \
+  -H "X-API-KEY: $API_SECRET_KEY" \
+  -d '{"incident_id":"INC12345","service_name":"dummy_service.py"}'
+```
+
+⸻
+
 🧪 API Endpoints
 
 🔹 API Health
@@ -150,7 +170,7 @@ GET /health/dependency/db
 
 🔥 Incident Analysis
 
-POST /incident/analyze
+POST /incident/analyze (requires `X-API-KEY`)
 
 
 ⸻
@@ -159,7 +179,15 @@ POST /incident/analyze
 
 Run All Tests
 
+```bash
 pytest
+```
+
+Run only API tests:
+
+```bash
+pytest tests/test_api.py
+```
 
 
 ⸻
@@ -177,7 +205,17 @@ Cloud Runner (CI)
 Self-hosted Runner (CD)
    ├── Download Artifact
    ├── Deploy
+   ├── Install Dependencies (venv + pip)
    └── Restart App
+
+The workflow triggers on:
+- `push` to `main`
+- `pull_request` targeting `main`
+
+Deployment requires repository secret:
+- `API_SECRET_KEY`
+
+Deployment health check retries startup and prints `output.log` on failure for faster debugging.
 
 
 ⸻
