@@ -121,6 +121,7 @@ jobs:
           cd ~/deployments/current
           source .venv/bin/activate
           nohup env -u RUNNER_TRACKING_ID API_SECRET_KEY="$API_SECRET_KEY" python app.py > output.log 2>&1 &
+          nohup env API_SECRET_KEY="$API_SECRET_KEY" python app.py > output.log 2>&1 &
 
       # Health check
       - name: Health check
