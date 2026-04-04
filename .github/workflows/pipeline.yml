@@ -6,50 +6,82 @@ on:
 
 jobs:
 
-# -------------------------
-# 1. BUILD + TEST (CLOUD)
-# -------------------------
+# =========================================================
+# 1. BUILD + TEST (GitHub Hosted Runner)
+# =========================================================
   build-test:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout
-      - name: Checkout code
-        uses: actions/checkout@v3
+      # -----------------------------------------------------
+      # Step 1: Checkout source code
+      # -----------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      # Setup Python
+      # -----------------------------------------------------
+      # Step 2: Setup Python runtime
+      # Standard way to ensure consistent Python version
+      # -----------------------------------------------------
       - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # -----------------------------------------------------
+      # Step 3: Install dependencies
+      # Create isolated virtual environment
+      # -----------------------------------------------------
+      - name: Install dependencies
         run: |
           python -m venv venv
           source venv/bin/activate
           pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest
 
-      # Setup environment (DB + logs)
-      - name: Setup test environment
+      # -----------------------------------------------------
+      # Step 4: Prepare test environment
+      # Simulate DB + logs required by application
+      # -----------------------------------------------------
+      - name: Prepare test data
         run: |
           mkdir -p logs database
 
-          python -c "import sqlite3; conn=sqlite3.connect('database/test.db'); conn.execute('CREATE TABLE IF NOT EXISTS test (id INTEGER)'); conn.close()"
+          python -c "
+          import sqlite3;
+          conn = sqlite3.connect('database/test.db');
+          conn.execute('CREATE TABLE IF NOT EXISTS test (id INTEGER)');
+          conn.close()
+          "
 
           echo "INFO: App started" > logs/app.log
           echo "ERROR: connection refused to DB" >> logs/app.log
 
-      # Run tests
+      # -----------------------------------------------------
+      # Step 5: Run tests
+      # Inject API key securely using GitHub Secrets
+      # -----------------------------------------------------
       - name: Run tests
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
         run: |
           source venv/bin/activate
           pytest
 
-      # Build artifact
-      - name: Create artifact
+      # -----------------------------------------------------
+      # Step 6: Build application artifact
+      # Package application for deployment
+      # -----------------------------------------------------
+      - name: Build artifact
         run: |
           mkdir -p build
           cp -r app.py routes services utils logs database dummy_service.py requirements.txt build/
           tar -czf incident-api.tar.gz build/
 
-      # Upload artifact
+      # -----------------------------------------------------
+      # Step 7: Upload artifact
+      # Makes artifact available to deploy job
+      # -----------------------------------------------------
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -57,45 +89,44 @@ jobs:
           path: incident-api.tar.gz
 
 
-# -------------------------
-# 2. DEPLOY (SELF-HOSTED)
-# -------------------------
+# =========================================================
+# 2. DEPLOY (Self-Hosted Runner - Local Machine)
+# =========================================================
   deploy:
     needs: build-test
     runs-on: self-hosted
 
     steps:
-      # Download artifact to workspace
+      # -----------------------------------------------------
+      # Step 1: Download artifact
+      # -----------------------------------------------------
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
           name: incident-api
           path: ${{ github.workspace }}
 
-      # Debug (SAFE to keep for now)
-      - name: Debug artifact location
-        run: |
-          echo "Workspace:"
-          pwd
-          echo "Listing files:"
-          ls -la
-
-      # Deploy
+      # -----------------------------------------------------
+      # Step 2: Deploy application
+      # Clean previous deployment and extract new version
+      # -----------------------------------------------------
       - name: Deploy application
         run: |
-          mkdir -p ~/deployments/current
+          DEPLOY_DIR=~/deployments/current
 
-          rm -rf ~/deployments/current/*
-          
+          mkdir -p $DEPLOY_DIR
+          rm -rf $DEPLOY_DIR/*
+
           tar -xzf ${{ github.workspace }}/incident-api.tar.gz \
-            -C ~/deployments/current \
+            -C $DEPLOY_DIR \
             --strip-components=1
 
-      # Restart app
-      - name: Restart application
+      # -----------------------------------------------------
+      # Step 3: Setup runtime environment
+      # Install dependencies and inject environment config
+      # -----------------------------------------------------
+      - name: Setup runtime
         run: |
-          pkill -f "python app.py" || true
-
           cd ~/deployments/current
 
           python3 -m venv venv
@@ -103,10 +134,26 @@ jobs:
 
           pip install -r requirements.txt
 
+          # Inject API key securely from GitHub Secrets
+          echo "API_KEY=${{ secrets.API_KEY }}" > .env
+
+      # -----------------------------------------------------
+      # Step 4: Restart application
+      # Stop existing process and start new instance
+      # -----------------------------------------------------
+      - name: Restart application
+        run: |
+          pkill -f "python app.py" || true
+
+          cd ~/deployments/current
+
           nohup ./venv/bin/python app.py > output.log 2>&1 &
 
-      # Health check
+      # -----------------------------------------------------
+      # Step 5: Verify deployment
+      # Ensure application is up and responding
+      # -----------------------------------------------------
       - name: Health check
         run: |
           sleep 5
-          curl http://localhost:8000/health/app
+          curl --fail http://localhost:8000/health/app

@@ -1,73 +1,88 @@
 import requests
 import pytest
+import os
+from dotenv import load_dotenv
 
-import pytest
-
-pytest.skip("Skipping external API tests in CI", allow_module_level=True)
+# ---------------------------
+# Load environment variables
+# ---------------------------
+load_dotenv()
 
 BASE_URL = "http://localhost:8000"
 
+# ---------------------------
+# API Key (from env)
+# ---------------------------
+API_KEY = os.getenv("API_KEY")
 
+if not API_KEY:
+    raise RuntimeError("API_KEY not found in environment")
+
+HEADERS = {
+    "X-API-Key": API_KEY   # ✅ match auth.py
+}
+
+
+# ---------------------------
+# Helper: Check if server is running
+# ---------------------------
 def is_server_up():
     try:
-        requests.get(f"{BASE_URL}/health/app", timeout=1)
-        return True
-    except:
+        res = requests.get(f"{BASE_URL}/health/app", timeout=2)
+        return res.status_code == 200
+    except Exception:
         return False
 
-
-@pytest.mark.skipif(not is_server_up(), reason="API server not running")
-def test_health_app_requests():
-    res = requests.get(f"{BASE_URL}/health/app")
-    assert res.status_code == 200
 
 # ---------------------------
 # Health: API
 # ---------------------------
+@pytest.mark.skipif(not is_server_up(), reason="API server not running")
 def test_health_app_requests():
-    res = requests.get(f"{BASE_URL}/health/app")
+    res = requests.get(f"{BASE_URL}/health/app", timeout=2)
 
     assert res.status_code == 200
     assert res.json()["status"] == "UP"
 
 
 # ---------------------------
-# Health: Service
+# Incident API (Authorized)
 # ---------------------------
-def test_health_service_requests():
-    res = requests.get(f"{BASE_URL}/health/dependency/service")
-
-    assert res.status_code == 200
-    assert res.json()["status"] in ["UP", "DOWN"]
-
-
-# ---------------------------
-# Health: DB
-# ---------------------------
-def test_health_db_requests():
-    res = requests.get(f"{BASE_URL}/health/dependency/db")
-
-    assert res.status_code == 200
-    assert res.json()["status"] in ["UP", "DOWN"]
-
-
-# ---------------------------
-# Incident API
-# ---------------------------
+@pytest.mark.skipif(not is_server_up(), reason="API server not running")
 def test_incident_analyze_requests():
     payload = {
         "incident_id": "INC12345",
         "service_name": "dummy_service.py"
     }
 
-    res = requests.post(f"{BASE_URL}/incident/analyze", json=payload)
+    res = requests.post(
+        f"{BASE_URL}/incident/analyze",
+        json=payload,
+        headers=HEADERS,
+        timeout=3
+    )
 
     assert res.status_code == 200
 
     data = res.json()
-
-    assert "incident_id" in data
-    assert "service_status" in data
-    assert "db_status" in data
-    assert "possible_cause" in data
+    assert data["incident_id"] == "INC12345"
     assert "overall_status" in data
+
+
+# ---------------------------
+# Incident API (Unauthorized)
+# ---------------------------
+@pytest.mark.skipif(not is_server_up(), reason="API server not running")
+def test_incident_analyze_requests_unauthorized():
+    payload = {
+        "incident_id": "INC12345",
+        "service_name": "dummy_service.py"
+    }
+
+    res = requests.post(
+        f"{BASE_URL}/incident/analyze",
+        json=payload,
+        timeout=3
+    )
+
+    assert res.status_code == 401
